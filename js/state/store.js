@@ -6,6 +6,7 @@ import {
   TAG_GROUPS,
 } from '../data/defaults.js';
 import { detectDefaultLang, t, tNested } from '../i18n/translations.js';
+import { DEFAULT_GOOGLE_CLIENT_ID } from '../services/googleDrive.js';
 
 const STORAGE_KEY = 'packready_state_v1';
 const SCHEMA_VERSION = 2;
@@ -58,7 +59,7 @@ function createDefaultState() {
     collapsedCategories: [],
     theme: 'auto', // 'auto' | 'light' | 'dark'
     driveConfig: {
-      clientId: '',
+      clientId: DEFAULT_GOOGLE_CLIENT_ID,
       autoSync: false,
       lastSyncedAt: null,
       fileId: null,
@@ -105,6 +106,7 @@ class Store {
         driveConfig: {
           ...base.driveConfig,
           ...(parsed.driveConfig || {}),
+          clientId: parsed.driveConfig?.clientId || DEFAULT_GOOGLE_CLIENT_ID,
         },
         items,
         customTags: Array.isArray(parsed.customTags) ? parsed.customTags : [],

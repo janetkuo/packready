@@ -8,6 +8,9 @@ const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const BACKUP_FILENAME = 'packready-backup.json';
 
+export const DEFAULT_GOOGLE_CLIENT_ID =
+  '592001205133-6f41prs5p41s92e61pae5eb34rs05as2.apps.googleusercontent.com';
+
 class GoogleDriveService {
   constructor() {
     this.accessToken = null;
