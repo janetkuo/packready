@@ -245,8 +245,22 @@ class GoogleDriveService {
     return list?.files?.[0] || null;
   }
 
-  async uploadBackup(payload, knownFileId = null) {
+  async uploadBackup(payload, knownFileId = null, { expectedModifiedTime = null, force = false } = {}) {
     const existing = await this.findBackupFile(knownFileId);
+
+    // Conflict guard: prevent overwriting a newer (or previously unknown) remote backup
+    if (!force && existing?.modifiedTime) {
+      const remoteMs = new Date(existing.modifiedTime).getTime();
+      const localMs = expectedModifiedTime ? new Date(expectedModifiedTime).getTime() : 0;
+      if (!expectedModifiedTime || (Number.isFinite(remoteMs) && remoteMs > localMs + 2000)) {
+        const conflictErr = new Error('DRIVE_CONFLICT');
+        conflictErr.code = 'DRIVE_CONFLICT';
+        conflictErr.remoteModifiedTime = existing.modifiedTime;
+        conflictErr.fileId = existing.id;
+        throw conflictErr;
+      }
+    }
+
     const metadata = {
       name: BACKUP_FILENAME,
       mimeType: 'application/json',

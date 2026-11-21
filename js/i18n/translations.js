@@ -188,6 +188,9 @@ export const TRANSLATIONS = {
     toastImportedCsvNone: 'All items in this CSV already exist in your checklist',
     toastUpdateAvailable: 'New version available (v{version})',
     toastUpdateReload: 'Reload',
+    toastDriveConflictAuto: 'Newer backup found on Drive ({time}) — auto-sync paused to avoid overwriting',
+    toastDriveRestoreAction: 'Restore',
+    confirmDriveOverwrite: 'Google Drive already has a newer backup (updated {time}) from another device.\nOverwrite Drive with this device\'s list anyway?\n(Cancel to keep Drive\'s version and restore it instead.)',
 
     // Tag groups
     tagGroups: {
@@ -427,6 +430,9 @@ export const TRANSLATIONS = {
     toastImportedCsvNone: 'CSV 中的品項都已存在於清單中',
     toastUpdateAvailable: '發現新版本 (v{version})',
     toastUpdateReload: '立即更新',
+    toastDriveConflictAuto: '雲端有較新備份 ({time})，已暫停自動同步避免覆蓋',
+    toastDriveRestoreAction: '從 Drive 還原',
+    confirmDriveOverwrite: 'Google Drive 上已有其他裝置較新的備份（更新時間：{time}）。\n確定要用這台裝置的資料覆蓋雲端嗎？\n（按「取消」可保留雲端版本並改用還原）',
 
     // Tag groups
     tagGroups: {

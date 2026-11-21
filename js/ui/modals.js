@@ -252,16 +252,64 @@ export function scheduleAutoSyncIfEnabled() {
   autoSyncTimer = setTimeout(async () => {
     try {
       const payload = store.exportBackupPayload();
-      const res = await googleDrive.uploadBackup(payload, store.state.driveConfig.fileId);
+      const res = await googleDrive.uploadBackup(payload, store.state.driveConfig.fileId, {
+        expectedModifiedTime: store.state.driveConfig.lastSyncedAt,
+        force: false,
+      });
       store.updateDriveConfig({
         fileId: res.fileId,
         lastSyncedAt: res.modifiedTime,
       });
       updateDriveUI();
     } catch (err) {
-      console.warn('Auto-sync failed:', err);
+      if (err?.code === 'DRIVE_CONFLICT') {
+        const timeStr = formatDateTime(err.remoteModifiedTime);
+        showToast(store.t('toastDriveConflictAuto', { time: timeStr }), {
+          actionLabel: store.t('toastDriveRestoreAction'),
+          onAction: () => {
+            restoreFromDrive();
+          },
+          isError: true,
+          duration: 10000,
+        });
+      } else {
+        console.warn('Auto-sync failed:', err);
+      }
     }
   }, 2500);
+}
+
+async function restoreFromDrive() {
+  const btn = document.getElementById('btn-drive-download');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = store.t('driveDownloading');
+  }
+  try {
+    const res = await googleDrive.downloadBackup(store.state.driveConfig.fileId);
+    const count = res.payload?.data?.items?.length ?? 0;
+    const confirmed = window.confirm(
+      store.t('confirmDriveRestore', { count, time: formatDateTime(res.modifiedTime) })
+    );
+    if (confirmed) {
+      store.importBackupPayload(res.payload, 'replace');
+      store.updateDriveConfig({
+        fileId: res.fileId,
+        lastSyncedAt: res.modifiedTime,
+      });
+      updateDriveUI();
+      renderAll();
+      showToast(store.t('toastDriveRestored', { count }));
+    }
+  } catch (err) {
+    updateDriveUI();
+    showToast(err.message || 'Restore failed', { isError: true, duration: 6000 });
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = store.t('driveDownloadBtn');
+    }
+  }
 }
 
 function formatDateTime(iso) {
@@ -481,7 +529,25 @@ export function bindModalEvents() {
     btn.textContent = store.t('driveUploading');
     try {
       const payload = store.exportBackupPayload();
-      const res = await googleDrive.uploadBackup(payload, store.state.driveConfig.fileId);
+      let res;
+      try {
+        res = await googleDrive.uploadBackup(payload, store.state.driveConfig.fileId, {
+          expectedModifiedTime: store.state.driveConfig.lastSyncedAt,
+          force: false,
+        });
+      } catch (err) {
+        if (err?.code === 'DRIVE_CONFLICT') {
+          const ok = window.confirm(
+            store.t('confirmDriveOverwrite', { time: formatDateTime(err.remoteModifiedTime) })
+          );
+          if (!ok) return;
+          res = await googleDrive.uploadBackup(payload, err.fileId || store.state.driveConfig.fileId, {
+            force: true,
+          });
+        } else {
+          throw err;
+        }
+      }
       store.updateDriveConfig({
         fileId: res.fileId,
         lastSyncedAt: res.modifiedTime,
@@ -497,33 +563,8 @@ export function bindModalEvents() {
     }
   });
 
-  document.getElementById('btn-drive-download')?.addEventListener('click', async () => {
-    const btn = document.getElementById('btn-drive-download');
-    btn.disabled = true;
-    btn.textContent = store.t('driveDownloading');
-    try {
-      const res = await googleDrive.downloadBackup(store.state.driveConfig.fileId);
-      const count = res.payload?.data?.items?.length ?? 0;
-      const confirmed = window.confirm(
-        store.t('confirmDriveRestore', { count, time: formatDateTime(res.modifiedTime) })
-      );
-      if (confirmed) {
-        store.importBackupPayload(res.payload, 'replace');
-        store.updateDriveConfig({
-          fileId: res.fileId,
-          lastSyncedAt: res.modifiedTime,
-        });
-        updateDriveUI();
-        renderAll();
-        showToast(store.t('toastDriveRestored', { count }));
-      }
-    } catch (err) {
-      updateDriveUI();
-      showToast(err.message || 'Restore failed', { isError: true, duration: 6000 });
-    } finally {
-      btn.disabled = false;
-      btn.textContent = store.t('driveDownloadBtn');
-    }
+  document.getElementById('btn-drive-download')?.addEventListener('click', () => {
+    restoreFromDrive();
   });
 
   document.getElementById('drive-autosync')?.addEventListener('change', (e) => {
