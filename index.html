@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0F766E" />
+  <meta name="description" content="PackReady — Bilingual multi-context travel packing and pre-departure checklist web app with custom items, one-click reset, and Google Drive backup." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>PackReady — Travel Checklist</title>
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <!-- Sticky Top Header -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <img src="./icon.svg" alt="" class="brand-logo" width="34" height="34" />
+        <div class="brand-text">
+          <h1 class="brand-title">PackReady</h1>
+          <span class="brand-subtitle" data-i18n="brandSubtitle">Travel Packing Checklist</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button type="button" class="btn btn-ghost" id="btn-open-backup" data-i18n-title="backupDriveTitle">
+          <span class="btn-icon" aria-hidden="true">☁️</span>
+          <span class="btn-label" data-i18n="backupDrive">Backup / Drive</span>
+          <span class="status-dot" id="drive-status-dot" hidden></span>
+        </button>
+
+        <button type="button" class="btn btn-ghost" id="btn-open-reset" data-i18n-title="resetTitle">
+          <span class="btn-icon" aria-hidden="true">↺</span>
+          <span class="btn-label" data-i18n="reset">Reset</span>
+        </button>
+
+        <button type="button" class="btn btn-ghost btn-lang" id="btn-toggle-lang" data-i18n-title="switchLangTitle">
+          <span id="lang-label" data-i18n="switchLangLabel">繁中</span>
+        </button>
+
+        <button type="button" class="btn btn-icon-only btn-ghost" id="btn-toggle-theme" data-i18n-title="toggleThemeTitle" aria-label="Toggle theme">
+          <span id="theme-icon" aria-hidden="true">🌙</span>
+        </button>
+
+        <button type="button" class="btn btn-primary desktop-only" id="btn-open-add">
+          <span aria-hidden="true">＋</span>
+          <span data-i18n="addItem">Add Item</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Compact Progress & Context Strip -->
+  <section class="mobile-strip" aria-label="Progress and context summary">
+    <div class="mobile-strip-top">
+      <div class="mobile-progress-info">
+        <span class="mobile-progress-label" id="mobile-progress-text">0 / 0</span>
+        <span class="mobile-progress-pct" id="mobile-progress-pct">0%</span>
+      </div>
+      <button type="button" class="btn btn-soft btn-sm" id="btn-open-mobile-drawer">
+        <span>🎛️ <span data-i18n="configureContext">Filters</span></span>
+        <span class="pill-count" id="mobile-active-tag-count" hidden>0</span>
+      </button>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="mobile-progress-fill" style="width: 0%"></div>
+    </div>
+    <div class="mobile-active-pills" id="mobile-active-pills"></div>
+  </section>
+
+  <!-- Main Workspace -->
+  <div class="app-shell">
+    <!-- Backdrop for mobile drawer -->
+    <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+
+    <!-- Left Sidebar (Desktop) / Slide-over Drawer (Mobile) -->
+    <aside class="sidebar" id="filter-sidebar" aria-label="Trip context filters">
+      <div class="drawer-header mobile-only">
+        <h2 data-i18n="contextSettings">Trip Context</h2>
+        <button type="button" class="btn btn-icon-only btn-ghost" id="btn-close-mobile-drawer" data-i18n-title="closeContextPanel" aria-label="Close">✕</button>
+      </div>
+
+      <!-- Progress Card -->
+      <div class="card progress-card">
+        <div class="progress-card-header">
+          <div>
+            <div class="progress-card-title" data-i18n="tripProgressTitle">Trip Progress</div>
+            <div class="progress-card-nums" id="sidebar-progress-nums">0 / 0</div>
+          </div>
+          <div class="progress-ring-wrap" aria-hidden="true">
+            <svg class="progress-ring" viewBox="0 0 48 48">
+              <circle class="progress-ring-bg" cx="24" cy="24" r="20" />
+              <circle class="progress-ring-fg" id="progress-ring-fg" cx="24" cy="24" r="20" />
+            </svg>
+            <span class="progress-ring-pct" id="sidebar-progress-pct">0%</span>
+          </div>
+        </div>
+        <div class="progress-breakdown" id="sidebar-progress-breakdown"></div>
+        <div class="complete-banner" id="complete-banner" hidden data-i18n="completeBanner">
+          All set! Have a wonderful trip!
+        </div>
+      </div>
+
+      <!-- Presets Card -->
+      <div class="card sidebar-card">
+        <div class="card-section-header">
+          <h3 data-i18n="presetsTitle">Quick Presets</h3>
+          <button type="button" class="link-btn" id="btn-save-preset" data-i18n="savePreset">+ Save</button>
+        </div>
+        <div class="presets-list" id="presets-list"></div>
+      </div>
+
+      <!-- Context Filter Card -->
+      <div class="card sidebar-card">
+        <div class="card-section-header">
+          <h3 data-i18n="contextTitle">Trip Contexts</h3>
+          <div class="section-header-actions">
+            <button type="button" class="link-btn" id="btn-manage-tags" data-i18n="customTagBtn">+ Custom Tag</button>
+            <button type="button" class="link-btn link-muted" id="btn-clear-tags" hidden data-i18n="clear">Clear</button>
+          </div>
+        </div>
+
+        <!-- Filter Mode Switch -->
+        <div class="segmented-control" role="tablist" id="filter-mode-control">
+          <button type="button" class="seg-btn active" data-mode="trip" role="tab" data-i18n="modeTrip" data-i18n-title="modeTripTitle">Trip Mode</button>
+          <button type="button" class="seg-btn" data-mode="strict" role="tab" data-i18n="modeStrict" data-i18n-title="modeStrictTitle">Tags Only</button>
+          <button type="button" class="seg-btn" data-mode="all" role="tab" data-i18n="modeAll" data-i18n-title="modeAllTitle">All Items</button>
+        </div>
+
+        <p class="filter-hint" id="filter-mode-hint"></p>
+
+        <div class="tag-groups" id="sidebar-tag-groups"></div>
+      </div>
+
+      <div class="drawer-footer mobile-only">
+        <button type="button" class="btn btn-primary btn-block" id="btn-apply-mobile-drawer">
+          <span id="drawer-apply-label">View List (0)</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Checklist Area -->
+    <main class="main-content">
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="search-box">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input
+            type="search"
+            id="search-input"
+            class="search-input"
+            data-i18n-placeholder="searchPlaceholder"
+            placeholder="Search items, categories, or notes... (press /)"
+            autocomplete="off"
+          />
+          <button type="button" class="search-clear" id="btn-clear-search" hidden data-i18n-title="clearSearch" aria-label="Clear search">✕</button>
+        </div>
+
+        <div class="toolbar-filters">
+          <div class="segmented-control compact" id="type-filter-control" role="tablist">
+            <button type="button" class="seg-btn active" data-type="all" role="tab" data-i18n="typeAll">All</button>
+            <button type="button" class="seg-btn" data-type="packing" role="tab">🧳 <span data-i18n="typePacking">Packing</span></button>
+            <button type="button" class="seg-btn" data-type="task" role="tab">🏠 <span data-i18n="typeTask">Pre-trip</span></button>
+          </div>
+
+          <button type="button" class="toggle-chip" id="btn-filter-carryon" aria-pressed="false">
+            <span>🎒 <span data-i18n="carryOnFilter">Carry-on</span></span>
+          </button>
+
+          <button type="button" class="toggle-chip" id="btn-filter-unpacked" aria-pressed="false">
+            <span>⬜ <span data-i18n="unpackedFilter">Unpacked only</span></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Inline Add Bar -->
+      <form class="quick-add-bar" id="quick-add-form">
+        <input
+          type="text"
+          id="quick-add-name"
+          class="quick-add-input"
+          data-i18n-placeholder="quickAddPlaceholder"
+          placeholder="Quick add an item (uses current contexts)..."
+          maxlength="80"
+          autocomplete="off"
+        />
+        <select id="quick-add-category" class="quick-add-select" aria-label="Category"></select>
+        <button type="submit" class="btn btn-soft quick-add-submit" data-i18n="quickAddBtn">+ Add</button>
+      </form>
+
+      <!-- Checklist Container -->
+      <div class="checklist-container" id="checklist-container"></div>
+    </main>
+  </div>
+
+  <!-- Mobile Floating Action Button -->
+  <button type="button" class="fab mobile-only" id="btn-fab-add" data-i18n-title="addItem" aria-label="Add Item">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" aria-hidden="true">
+      <line x1="12" y1="5" x2="12" y2="19"></line>
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+  </button>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- Modal 1: Add / Edit Item                       -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-item" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-item-title">
+      <div class="modal-header">
+        <h2 id="modal-item-title" data-i18n="modalAddTitle">Add Item</h2>
+        <button type="button" class="btn btn-icon-only btn-ghost modal-close" data-close="modal-item" aria-label="Close">✕</button>
+      </div>
+      <form id="item-form" class="modal-body">
+        <input type="hidden" id="item-id" />
+
+        <div class="form-group">
+          <label for="item-name"><span data-i18n="fieldItemName">Item or task name</span> <span class="req">*</span></label>
+          <input type="text" id="item-name" class="form-control" required maxlength="100" data-i18n-placeholder="fieldItemNamePlaceholder" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="item-type" data-i18n="fieldType">Type</label>
+            <select id="item-type" class="form-control">
+              <option value="packing" data-i18n="optTypePacking">🧳 Packing Item</option>
+              <option value="task" data-i18n="optTypeTask">🏠 Pre-departure Task</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="item-category" data-i18n="fieldCategory">Category</label>
+            <input type="text" id="item-category" class="form-control" list="category-datalist" data-i18n-placeholder="fieldCategoryPlaceholder" required />
+            <datalist id="category-datalist"></datalist>
+          </div>
+        </div>
+
+        <div class="form-group checkbox-row" id="carryon-row">
+          <label class="switch-label">
+            <input type="checkbox" id="item-carryon" />
+            <span data-i18n="fieldCarryOn">🎒 Mark as Carry-on</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label data-i18n="fieldContexts">Applicable Contexts</label>
+          <div class="modal-tag-picker" id="modal-tag-picker"></div>
+          <p class="form-help" data-i18n="fieldContextsHelp"></p>
+        </div>
+
+        <div class="form-group">
+          <label for="item-note" data-i18n="fieldNote">Note (optional)</label>
+          <input type="text" id="item-note" class="form-control" maxlength="160" data-i18n-placeholder="fieldNotePlaceholder" />
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-danger-ghost" id="btn-delete-item-modal" hidden data-i18n="deleteItemBtn">Delete</button>
+          <div class="modal-footer-right">
+            <button type="button" class="btn btn-ghost" data-close="modal-item" data-i18n="cancel">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-item" data-i18n="save">Save</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- Modal 2: Manage Custom Tags                    -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-tags" hidden>
+    <div class="modal-dialog modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-tags-title">
+      <div class="modal-header">
+        <h2 id="modal-tags-title" data-i18n="modalTagsTitle">Manage Custom Context Tags</h2>
+        <button type="button" class="btn btn-icon-only btn-ghost modal-close" data-close="modal-tags" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc" data-i18n="modalTagsDesc"></p>
+        <form id="custom-tag-form" class="inline-form">
+          <input type="text" id="new-tag-icon" class="form-control emoji-input" value="🏷️" maxlength="4" aria-label="Icon" />
+          <input type="text" id="new-tag-label" class="form-control" data-i18n-placeholder="newTagLabelPlaceholder" maxlength="20" required />
+          <button type="submit" class="btn btn-primary" data-i18n="addBtn">Add</button>
+        </form>
+        <div class="quick-emojis" id="quick-emojis" aria-label="Quick icons">
+          <button type="button" class="emoji-btn">🏥</button>
+          <button type="button" class="emoji-btn">🎿</button>
+          <button type="button" class="emoji-btn">🏖️</button>
+          <button type="button" class="emoji-btn">🇰🇷</button>
+          <button type="button" class="emoji-btn">🇹🇭</button>
+          <button type="button" class="emoji-btn">📷</button>
+          <button type="button" class="emoji-btn">👶</button>
+          <button type="button" class="emoji-btn">🐾</button>
+          <button type="button" class="emoji-btn">🏋️</button>
+          <button type="button" class="emoji-btn">🎤</button>
+        </div>
+        <div class="custom-tags-list" id="custom-tags-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- Modal 3: Reset Confirmation                    -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-reset" hidden>
+    <div class="modal-dialog modal-sm" role="dialog" aria-modal="true" aria-labelledby="modal-reset-title">
+      <div class="modal-header">
+        <h2 id="modal-reset-title" data-i18n="modalResetTitle">Reset Checklist</h2>
+        <button type="button" class="btn btn-icon-only btn-ghost modal-close" data-close="modal-reset" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc" data-i18n="modalResetDesc"></p>
+
+        <div class="reset-options">
+          <button type="button" class="btn btn-primary btn-block" id="btn-reset-all-checks"></button>
+          <button type="button" class="btn btn-soft btn-block" id="btn-reset-visible-checks"></button>
+        </div>
+
+        <details class="advanced-details">
+          <summary data-i18n="advancedRestoreSummary"></summary>
+          <p class="form-help" data-i18n="advancedRestoreDesc"></p>
+          <button type="button" class="btn btn-danger-ghost btn-sm" id="btn-restore-defaults" data-i18n="restoreDefaultsBtn"></button>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════ -->
+  <!-- Modal 4: Backup & Google Drive Sync            -->
+  <!-- ══════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modal-backup" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-backup-title">
+      <div class="modal-header">
+        <h2 id="modal-backup-title" data-i18n="modalBackupTitle">Backup & Google Drive Sync</h2>
+        <button type="button" class="btn btn-icon-only btn-ghost modal-close" data-close="modal-backup" aria-label="Close">✕</button>
+      </div>
+
+      <div class="modal-tabs" role="tablist">
+        <button type="button" class="modal-tab active" data-tab="drive" role="tab" data-i18n="tabDrive">☁️ Google Drive</button>
+        <button type="button" class="modal-tab" data-tab="file" role="tab" data-i18n="tabFile">💾 Local JSON / CSV</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Tab: Google Drive -->
+        <div class="tab-panel active" id="tab-panel-drive">
+          <div class="drive-status-card" id="drive-status-card">
+            <div class="drive-status-row">
+              <span class="drive-badge" id="drive-badge"></span>
+              <span class="drive-meta" id="drive-last-sync"></span>
+            </div>
+            <div class="drive-user" id="drive-user-info" hidden></div>
+          </div>
+
+          <div class="form-group">
+            <label for="drive-client-id" data-i18n="driveClientIdLabel">Google OAuth Client ID</label>
+            <div class="inline-form">
+              <input
+                type="text"
+                id="drive-client-id"
+                class="form-control"
+                placeholder="xxxxxx.apps.googleusercontent.com"
+                autocomplete="off"
+              />
+              <button type="button" class="btn btn-soft" id="btn-save-client-id" data-i18n="save">Save</button>
+            </div>
+            <p class="form-help" id="drive-client-id-help"></p>
+          </div>
+
+          <div class="drive-actions" id="drive-actions">
+            <button type="button" class="btn btn-primary btn-block" id="btn-drive-signin" data-i18n="driveSignInBtn"></button>
+            <div class="drive-connected-actions" id="drive-connected-actions" hidden>
+              <button type="button" class="btn btn-primary" id="btn-drive-upload" data-i18n="driveUploadBtn"></button>
+              <button type="button" class="btn btn-soft" id="btn-drive-download" data-i18n="driveDownloadBtn"></button>
+            </div>
+          </div>
+
+          <div class="form-group checkbox-row" id="drive-autosync-row" hidden>
+            <label class="switch-label">
+              <input type="checkbox" id="drive-autosync" />
+              <span data-i18n="driveAutoSyncLabel"></span>
+            </label>
+          </div>
+
+          <div class="drive-footer-row" id="drive-signout-row" hidden>
+            <button type="button" class="link-btn link-danger" id="btn-drive-signout" data-i18n="driveSignOutBtn"></button>
+          </div>
+
+          <details class="setup-guide">
+            <summary data-i18n="driveGuideSummary"></summary>
+            <ol class="guide-steps">
+              <li data-i18n-html="driveGuideStep1"></li>
+              <li data-i18n-html="driveGuideStep2"></li>
+              <li data-i18n-html="driveGuideStep3"></li>
+              <li data-i18n-html="driveGuideStep4"></li>
+              <li data-i18n-html="driveGuideStep5"></li>
+            </ol>
+            <p class="form-help"><span data-i18n="currentOriginLabel"></span> <code id="current-origin-code"></code></p>
+          </details>
+        </div>
+
+        <!-- Tab: Local File JSON / CSV -->
+        <div class="tab-panel" id="tab-panel-file" hidden>
+          <div class="backup-section">
+            <h3 data-i18n="exportJsonTitle"></h3>
+            <p class="form-help" data-i18n="exportJsonDesc"></p>
+            <button type="button" class="btn btn-primary" id="btn-export-json" data-i18n="exportJsonBtn"></button>
+          </div>
+
+          <hr class="divider" />
+
+          <div class="backup-section">
+            <h3 data-i18n="importJsonTitle"></h3>
+            <div class="import-mode-row">
+              <label><input type="radio" name="import-mode" value="merge" checked /> <span data-i18n="importMerge"></span></label>
+              <label><input type="radio" name="import-mode" value="replace" /> <span data-i18n="importReplace"></span></label>
+            </div>
+            <input type="file" id="input-import-json" accept=".json,application/json" hidden />
+            <button type="button" class="btn btn-soft" id="btn-trigger-import-json" data-i18n="importJsonBtn"></button>
+          </div>
+
+          <hr class="divider" />
+
+          <div class="backup-section">
+            <h3 data-i18n="importCsvTitle"></h3>
+            <p class="form-help" data-i18n="importCsvDesc"></p>
+            <input type="file" id="input-import-csv" accept=".csv,text/csv" hidden />
+            <button type="button" class="btn btn-soft" id="btn-trigger-import-csv" data-i18n="importCsvBtn"></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
