@@ -256,6 +256,40 @@ function bindEvents() {
   });
 }
 
+const APP_VERSION = '1.2.0';
+let updatePromptShown = false;
+
+async function checkForAppUpdate() {
+  if (updatePromptShown) return;
+  try {
+    const res = await fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data?.version && data.version !== APP_VERSION) {
+      updatePromptShown = true;
+      showToast(store.t('toastUpdateAvailable', { version: data.version }), {
+        actionLabel: store.t('toastUpdateReload'),
+        onAction: async () => {
+          if ('caches' in window) {
+            try {
+              const keys = await caches.keys();
+              await Promise.all(keys.map((k) => caches.delete(k)));
+            } catch {
+              // Ignore cache cleanup errors
+            }
+          }
+          const url = new URL(window.location.href);
+          url.searchParams.set('v', data.version);
+          window.location.replace(url.toString());
+        },
+        duration: 15000,
+      });
+    }
+  } catch {
+    // Offline or local file mode — ignore silently
+  }
+}
+
 // ── Bootstrap ─────────────────────────────────────────────
 
 function init() {
@@ -265,6 +299,13 @@ function init() {
   bindModalEvents();
   updateDriveUI();
   renderAll();
+  checkForAppUpdate();
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      checkForAppUpdate();
+    }
+  });
 }
 
 init();

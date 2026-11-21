@@ -7,6 +7,7 @@
 const GIS_SCRIPT_URL = 'https://accounts.google.com/gsi/client';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const BACKUP_FILENAME = 'packready-backup.json';
+const SESSION_STORAGE_KEY = 'packready_drive_session_v1';
 
 export const DEFAULT_GOOGLE_CLIENT_ID =
   '592001205133-6f41prs5p41s92e61pae5eb34rs05as2.apps.googleusercontent.com';
@@ -16,9 +17,53 @@ class GoogleDriveService {
     this.accessToken = null;
     this.tokenExpiresAt = 0;
     this.userInfo = null;
+    this.lastEmail = null;
+    this.hasConsented = false;
     this.gisLoaded = false;
     this.tokenClient = null;
     this.activeClientId = null;
+
+    this.restoreSession();
+  }
+
+  restoreSession() {
+    try {
+      const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      this.lastEmail = saved.lastEmail || null;
+      this.hasConsented = Boolean(saved.hasConsented);
+      if (saved.accessToken && saved.tokenExpiresAt && Date.now() < saved.tokenExpiresAt - 30_000) {
+        this.accessToken = saved.accessToken;
+        this.tokenExpiresAt = saved.tokenExpiresAt;
+        this.userInfo = saved.userInfo || null;
+      }
+    } catch {
+      // Ignore corrupt session cache
+    }
+  }
+
+  persistSession() {
+    try {
+      localStorage.setItem(
+        SESSION_STORAGE_KEY,
+        JSON.stringify({
+          accessToken: this.accessToken,
+          tokenExpiresAt: this.tokenExpiresAt,
+          userInfo: this.userInfo,
+          lastEmail: this.lastEmail,
+          hasConsented: this.hasConsented,
+        })
+      );
+    } catch {
+      // Ignore storage quota errors
+    }
+  }
+
+  clearAccessToken() {
+    this.accessToken = null;
+    this.tokenExpiresAt = 0;
+    this.persistSession();
   }
 
   isSignedIn() {
@@ -36,7 +81,11 @@ class GoogleDriveService {
       const existing = document.querySelector(`script[src="${GIS_SCRIPT_URL}"]`);
       if (existing) {
         existing.addEventListener('load', () => resolve(), { once: true });
-        existing.addEventListener('error', () => reject(new Error('Failed to load Google Sign-In script. Check your network connection.')), { once: true });
+        existing.addEventListener(
+          'error',
+          () => reject(new Error('Failed to load Google Sign-In script. Check your network connection.')),
+          { once: true }
+        );
         return;
       }
       const script = document.createElement('script');
@@ -44,7 +93,8 @@ class GoogleDriveService {
       script.async = true;
       script.defer = true;
       script.onload = () => resolve();
-      script.onerror = () => reject(new Error('Failed to load Google Sign-In script. Check your network connection.'));
+      script.onerror = () =>
+        reject(new Error('Failed to load Google Sign-In script. Check your network connection.'));
       document.head.appendChild(script);
     });
 
@@ -54,7 +104,7 @@ class GoogleDriveService {
     this.gisLoaded = true;
   }
 
-  async signIn(clientId, { prompt = 'consent' } = {}) {
+  async signIn(clientId, { forceConsent = false } = {}) {
     const trimmed = (clientId || '').trim();
     if (!trimmed) {
       throw new Error('Please enter your Google OAuth Client ID first.');
@@ -65,10 +115,13 @@ class GoogleDriveService {
 
     await this.loadGisScript();
 
+    // If user already granted consent before, use prompt: '' to skip re-consent screen
+    const promptMode = forceConsent || !this.hasConsented ? 'consent' : '';
+
     const tokenResponse = await new Promise((resolve, reject) => {
       try {
         this.activeClientId = trimmed;
-        this.tokenClient = window.google.accounts.oauth2.initTokenClient({
+        const clientConfig = {
           client_id: trimmed,
           scope: DRIVE_SCOPE,
           callback: (resp) => {
@@ -82,13 +135,23 @@ class GoogleDriveService {
             if (err?.type === 'popup_closed') {
               reject(new Error('Google sign-in popup was closed.'));
             } else if (err?.type === 'popup_failed_to_open') {
-              reject(new Error('Popup blocked by browser. Please allow popups for this site and try again.'));
+              reject(
+                new Error('Popup blocked by browser. Please allow popups for this site and try again.')
+              );
             } else {
-              reject(new Error('Google sign-in error. Please verify your Client ID and Authorized JavaScript Origins.'));
+              reject(
+                new Error('Google sign-in error. Please verify your Client ID and Authorized JavaScript Origins.')
+              );
             }
           },
-        });
-        this.tokenClient.requestAccessToken({ prompt });
+        };
+
+        if (this.lastEmail) {
+          clientConfig.hint = this.lastEmail;
+        }
+
+        this.tokenClient = window.google.accounts.oauth2.initTokenClient(clientConfig);
+        this.tokenClient.requestAccessToken({ prompt: promptMode });
       } catch (err) {
         reject(err);
       }
@@ -97,6 +160,7 @@ class GoogleDriveService {
     this.accessToken = tokenResponse.access_token;
     const expiresInSec = Number(tokenResponse.expires_in) || 3600;
     this.tokenExpiresAt = Date.now() + expiresInSec * 1000;
+    this.hasConsented = true;
 
     // Fetch display name & email via Drive about endpoint
     try {
@@ -104,9 +168,14 @@ class GoogleDriveService {
         'https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress,photoLink)'
       );
       this.userInfo = about.user || null;
+      if (this.userInfo?.emailAddress) {
+        this.lastEmail = this.userInfo.emailAddress;
+      }
     } catch {
       this.userInfo = null;
     }
+
+    this.persistSession();
 
     return {
       user: this.userInfo,
@@ -125,6 +194,13 @@ class GoogleDriveService {
     this.accessToken = null;
     this.tokenExpiresAt = 0;
     this.userInfo = null;
+    this.lastEmail = null;
+    this.hasConsented = false;
+    try {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch {
+      // Ignore
+    }
   }
 
   async driveFetch(url, options = {}) {
@@ -136,8 +212,7 @@ class GoogleDriveService {
 
     const res = await fetch(url, { ...options, headers });
     if (res.status === 401) {
-      this.accessToken = null;
-      this.tokenExpiresAt = 0;
+      this.clearAccessToken();
       throw new Error('Google authorization expired. Please sign in again.');
     }
     if (!res.ok) {

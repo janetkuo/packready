@@ -186,6 +186,8 @@ export const TRANSLATIONS = {
     toastImportedReplace: 'Restored backup ({count} items)',
     toastImportedCsv: 'Imported {count} items from CSV (stored locally)',
     toastImportedCsvNone: 'All items in this CSV already exist in your checklist',
+    toastUpdateAvailable: 'New version available (v{version})',
+    toastUpdateReload: 'Reload',
 
     // Tag groups
     tagGroups: {
@@ -423,6 +425,8 @@ export const TRANSLATIONS = {
     toastImportedReplace: '已還原備份（共 {count} 個品項）',
     toastImportedCsv: '已從 CSV 匯入 {count} 個私人品項（僅存在本機）',
     toastImportedCsvNone: 'CSV 中的品項都已存在於清單中',
+    toastUpdateAvailable: '發現新版本 (v{version})',
+    toastUpdateReload: '立即更新',
 
     // Tag groups
     tagGroups: {
